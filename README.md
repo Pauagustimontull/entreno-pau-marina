@@ -67,6 +67,17 @@ Se abre a pantalla completa como una app.
 
 ---
 
+### Vista «Juntos 🏆»
+
+Tercera opción del selector de arriba. Lee los datos de los dos perfiles:
+
+- **👫 Pareja:** el reto de la semana (Pau 4+ días de gym y Marina 4+ días activos), anillos de progreso, marcador, ánimos para el otro y muro de actividad reciente (entrenos, récords, carreras, rutinas y logros).
+- **🏆 Logros:** unos 70 logros de Pau, de Marina y de pareja, con barra de progreso, fecha de cuándo se consiguieron y confeti al desbloquear nuevos.
+- **📊 Rendimiento:** días por semana, volumen en toneladas, 1RM estimado de los ejercicios principales y lo que más ha mejorado (Pau); minutos corriendo, avance del plan de carrera, rutinas y medidas (Marina).
+- **💌 Ánimos:** se guardan en `profiles/{perfil}/docs/cheers` del que los recibe. Al abrir su perfil o la vista Juntos, le sale un aviso arriba.
+
+Todo se calcula en el navegador a partir de los documentos que ya existen (`src/core/juntos.ts`), así que los logros cuentan también lo apuntado antes.
+
 ## Estructura
 
 ```
@@ -78,6 +89,8 @@ src/
   core/
     engine.ts            Motor de las figuras animadas (SVG)
     pau.ts               Plan de Pau (montado en un Shadow DOM)
+    juntos.ts            Vista Juntos: logros, rendimiento, pareja y ánimos
+    catalog-pau.ts       Catálogo de ejercicios de Pau (para logros y estadísticas)
     marina.ts            Plan de Marina (montado en un Shadow DOM)
     store.ts             Interfaz de datos que usan los planes (+ versión localStorage para pruebas)
   environments/firebase.config.ts
