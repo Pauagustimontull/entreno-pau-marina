@@ -4,6 +4,7 @@ import { auth } from './firebase';
 import { ProfileId, ProfileStore } from './profile-store';
 import { mountPau } from '../core/pau';
 import { mountMarina } from '../core/marina';
+import { DEFAULT_PROFILE_BY_EMAIL } from '../environments/profiles.config';
 
 const PROFILES: Record<ProfileId, { name: string; emoji: string; theme: string }> = {
   pau: { name: 'Pau', emoji: '🏋️', theme: 'theme-pau' },
@@ -74,7 +75,7 @@ export class AppComponent implements OnInit, OnDestroy {
   user = signal<User | null>(null);
   loadingAuth = signal(true);
   loadingData = signal(false);
-  profile = signal<ProfileId>(this.savedProfile());
+  profile = signal<ProfileId>('pau');
   status = signal('');
   statusError = signal(false);
   error = signal('');
@@ -96,6 +97,9 @@ export class AppComponent implements OnInit, OnDestroy {
     this.applyTheme();
     this.unsubAuth = onAuthStateChanged(auth, (u) => {
       this.zone.run(() => {
+        // Al entrar, cada uno empieza en su propio perfil (luego puede cambiar al del otro).
+        const own = u?.email ? DEFAULT_PROFILE_BY_EMAIL[u.email.toLowerCase()] : undefined;
+        if (own && own !== this.profile()) { this.profile.set(own); this.applyTheme(); }
         this.user.set(u);
         this.loadingAuth.set(false);
         if (!u) this.teardown();
@@ -130,18 +134,9 @@ export class AppComponent implements OnInit, OnDestroy {
   setProfile(p: ProfileId) {
     if (p === this.profile()) return;
     this.profile.set(p);
-    try { localStorage.setItem('entreno-perfil', p); } catch { /* ignorar */ }
     this.applyTheme();
     window.scrollTo({ top: 0 });
     this.mount();
-  }
-
-  private savedProfile(): ProfileId {
-    try {
-      const v = localStorage.getItem('entreno-perfil');
-      if (v === 'pau' || v === 'marina') return v;
-    } catch { /* ignorar */ }
-    return 'pau';
   }
 
   private applyTheme() {
