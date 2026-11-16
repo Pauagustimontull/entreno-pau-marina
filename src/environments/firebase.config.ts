@@ -1,11 +1,10 @@
-// Pega aquí la configuración de tu proyecto de Firebase:
-// Consola de Firebase → Configuración del proyecto → Tus apps → App web → "Configuración del SDK".
+// Configuración del proyecto de Firebase "entreno-pau-marina".
 // Estos valores no son secretos (identifican el proyecto); la seguridad la ponen las reglas de Firestore.
 export const firebaseConfig = {
-  apiKey: 'PEGA_AQUI',
-  authDomain: 'TU-PROYECTO.firebaseapp.com',
-  projectId: 'TU-PROYECTO',
-  storageBucket: 'TU-PROYECTO.appspot.com',
-  messagingSenderId: '000000000000',
-  appId: '1:000000000000:web:0000000000000000',
+  apiKey: 'AIzaSyDvKxjiTiLZ_wqW46Exj0P6XFnmPtKlzVY',
+  authDomain: 'entreno-pau-marina.firebaseapp.com',
+  projectId: 'entreno-pau-marina',
+  storageBucket: 'entreno-pau-marina.firebasestorage.app',
+  messagingSenderId: '847559651449',
+  appId: '1:847559651449:web:1b3b237b4d9a3e0d46a4a8',
 };

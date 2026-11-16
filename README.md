@@ -8,7 +8,13 @@ Los datos se guardan en Firestore, así que se sincronizan entre móviles y orde
 
 ---
 
-## 1. Crear el proyecto de Firebase (10 min, gratis)
+## 1. Firebase
+
+**Ya está configurado:** proyecto `entreno-pau-marina`, login con Google activado, Firestore en Madrid (`europe-southwest1`) y reglas publicadas.
+Solo falta poner el correo de Marina en `firestore.rules` y en *Firestore → Reglas* de la consola.
+
+Pasos por si algún día hay que montarlo de cero:
+
 
 1. Entra en <https://console.firebase.google.com> y crea un proyecto (puedes desactivar Analytics).
 2. **Añadir app web** (icono `</>`). Ponle un nombre y copia el objeto `firebaseConfig` que te enseña.

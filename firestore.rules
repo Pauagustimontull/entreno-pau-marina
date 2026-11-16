@@ -5,7 +5,7 @@ service cloud.firestore {
     function esDeLaPareja() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email in ['CORREO_DE_PAU@gmail.com', 'CORREO_DE_MARINA@gmail.com'];
+        && request.auth.token.email in ['pauagustimontull@gmail.com', 'CORREO_DE_MARINA@gmail.com'];
     }
 
     match /profiles/{perfil}/docs/{documento} {
