@@ -78,6 +78,30 @@ Tercera opción del selector de arriba. Lee los datos de los dos perfiles:
 
 Todo se calcula en el navegador a partir de los documentos que ya existen (`src/core/juntos.ts`), así que los logros cuentan también lo apuntado antes.
 
+### Mejoras de entreno
+
+- **Pau, registro serie a serie:** cada serie tiene su peso, sus reps y su RIR (las reps que quedaban en recámara). La recomendación tiene en cuenta el RIR.
+- **Aviso de estancamiento:** si un ejercicio lleva 3 sesiones sin mejorar (máximo estimado de la sesión), propone bajar un 10 %, cambiar de variante o descansar más.
+- **Gráfica por ejercicio:** botón «📈 Ver progreso» y filas de *Progreso*. Muestra el peso de trabajo, el 1RM estimado y el volumen de cada sesión.
+- **Resumen semanal:** sale en *Progreso*, y como aviso los domingos, lunes y martes, para los dos.
+- **Discos por lado** para la barra (20 kg, o 10 kg la Z) y **series de aproximación** con pesos calculados.
+- **Variantes** («🔄 Cambiar») cuando la máquina está ocupada. Cada variante guarda su historial aparte (`ex-L-0@mancuernas`).
+- **Marina, carreras con GPS:** distancia y ritmo medio en directo durante el temporizador. Al acabar se apuntan los km, los minutos y el ritmo.
+- **Nivel adaptativo:** al acabar cada rutina pregunta qué tal ha ido. Dos «fácil» seguidos suben de nivel (hasta el 4) y dos «muy dura» lo bajan.
+
+### Notificaciones (Firebase Cloud Messaging + Netlify Functions)
+
+- `public/firebase-messaging-sw.js`: service worker que muestra los avisos.
+- `src/app/push.ts`: pide permiso y guarda el token del dispositivo en `profiles/{perfil}/docs/push`.
+- `netlify/functions/avisar.mts`: envía al otro los ánimos y los eventos (récords, carreras, rutinas, subidas de nivel). Comprueba el token de Firebase de quien envía.
+- `netlify/functions/recordatorio.mts`: función programada, cada día a las 16:00 UTC (17:00 en Madrid en invierno). Avisa si ese día toca entrenar y no hay nada marcado.
+
+**Para activarlas hacen falta dos claves:**
+1. **Clave VAPID (pública):** Firebase → Configuración del proyecto → Cloud Messaging → *Certificados web push* → «Generar par de claves». Va en `src/environments/push.config.ts`.
+2. **Cuenta de servicio (secreta, nunca en el repo):** Firebase → Configuración del proyecto → Cuentas de servicio → «Generar nueva clave privada». Pega el contenido del JSON en Netlify → *Project configuration → Environment variables* como `FIREBASE_SERVICE_ACCOUNT`. Después, vuelve a desplegar.
+
+En iPhone los avisos solo funcionan con la web añadida a la pantalla de inicio (iOS 16.4 o posterior).
+
 ## Estructura
 
 ```
@@ -90,6 +114,9 @@ src/
     engine.ts            Motor de las figuras animadas (SVG)
     pau.ts               Plan de Pau (montado en un Shadow DOM)
     juntos.ts            Vista Juntos: logros, rendimiento, pareja y ánimos
+  app/push.ts            Notificaciones: permiso, token del dispositivo y avisos al otro
+netlify/functions/       avisar (ánimos y eventos) y recordatorio (programada)
+public/firebase-messaging-sw.js  Service worker de las notificaciones
     catalog-pau.ts       Catálogo de ejercicios de Pau (para logros y estadísticas)
     marina.ts            Plan de Marina (montado en un Shadow DOM)
     store.ts             Interfaz de datos que usan los planes (+ versión localStorage para pruebas)

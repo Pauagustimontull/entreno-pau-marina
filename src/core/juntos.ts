@@ -335,7 +335,7 @@ th{font-size:11px;color:#8a8f9c;font-weight:500}
 `;
 
 // ---------- Montaje ----------
-export function mountJuntos(host: HTMLElement, stores: Record<Who, CoreStore>, me: Who | null): () => void {
+export function mountJuntos(host: HTMLElement, stores: Record<Who, CoreStore>, me: Who | null, hooks: { onCheer?: (to: Who, text: string) => void } = {}): () => void {
   const R = host.shadowRoot || host.attachShadow({ mode: 'open' });
   let alive = true;
   let tab = 'pareja', filter = 'todos', perf: Who = me || 'pau';
@@ -373,6 +373,7 @@ export function mountJuntos(host: HTMLElement, stores: Record<Who, CoreStore>, m
     const st = stores[other]; const cur = (st.get('cheers') || {}).items || [];
     const items = [...cur, { from: me, text, ts: Date.now(), date: today() }].slice(-40);
     st.set('cheers', { items, updated: Date.now() });
+    if (hooks.onCheer) hooks.onCheer(other, text);
     const msg = R.getElementById('cheermsg'); if (msg) msg.textContent = `Enviado a ${NAMES[other]} ✓`;
     setTimeout(() => { if (alive) render(); }, 900);
   }

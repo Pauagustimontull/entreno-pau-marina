@@ -6,6 +6,7 @@ import { mountPau } from '../core/pau';
 import { mountMarina } from '../core/marina';
 import { mountJuntos, unseenCheers, markCheersSeen } from '../core/juntos';
 import { DEFAULT_PROFILE_BY_EMAIL } from '../environments/profiles.config';
+import { PushState, enablePush, notifyPartner, pushState, setReminders } from './push';
 
 type ViewId = ProfileId | 'juntos';
 
@@ -41,8 +42,26 @@ interface Cheer { from: ProfileId; text: string; ts: number; }
             </button>
           }
         </div>
+        <button class="bellb" (click)="togglePush()" [attr.aria-label]="'Avisos'" title="Avisos">{{ pushSt() === 'granted' ? '🔔' : '🔕' }}</button>
         <button class="out" (click)="logout()" title="Cerrar sesión">Salir</button>
       </header>
+      @if (pushOpen()) {
+        <div class="pushp">
+          <b>🔔 Avisos en el móvil</b>
+          @switch (pushSt()) {
+            @case ('not-configured') { <p>Ya está todo programado: falta poner la clave de notificaciones de Firebase en la app (un paso de 1 minuto).</p> }
+            @case ('ios-install') { <p>En iPhone los avisos solo funcionan con la app instalada: abre esta web en <b>Safari</b> → botón Compartir → <b>«Añadir a pantalla de inicio»</b>, y actívalos desde la app.</p> }
+            @case ('unsupported') { <p>Este navegador no permite notificaciones. Prueba con Chrome o con la app instalada en la pantalla de inicio.</p> }
+            @case ('denied') { <p>Has bloqueado las notificaciones para esta web. Actívalas en los ajustes del navegador y vuelve aquí.</p> }
+            @case ('default') { <p>Te avisará cuando el otro te mande ánimos, cuando bata un récord o termine un entreno, y te recordará a las 17:00 si te toca entrenar y aún no lo has hecho.</p>
+              <button class="pbtn" (click)="activatePush()">Activar avisos en este dispositivo</button> }
+            @case ('granted') { <p>Avisos activados en este dispositivo ✓</p>
+              <label class="pchk"><input type="checkbox" [checked]="reminders()" (change)="toggleReminders($any($event.target).checked)"> Recordatorio diario si me toca entrenar</label>
+              <button class="pbtn ghost" (click)="activatePush()">Volver a registrar este dispositivo</button> }
+          }
+          @if (pushMsg()) { <p class="pmsg">{{ pushMsg() }}</p> }
+        </div>
+      }
       @if (cheer(); as c) {
         <div class="cheer" role="status">
           <span class="ce">💌</span>
@@ -82,6 +101,14 @@ interface Cheer { from: ProfileId; text: string; ts: number; }
     .cheer .ct { flex: 1; line-height: 1.4; }
     .cheer small { color: #8a6f7c; }
     .cheer button { border: 0; background: rgba(255,255,255,.7); border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 13px; }
+    .bellb { border: 1px solid rgba(0,0,0,.1); background: #fff; border-radius: 50%; width: 34px; height: 34px; cursor: pointer; font-size: 15px; flex: none; }
+    .pushp { max-width: 732px; margin: 6px auto 0; background: #fff; border: 1px solid #ece4dc; border-radius: 16px; padding: 12px 14px; font-size: 13.5px; line-height: 1.45; box-sizing: border-box; }
+    @media (max-width: 760px) { .pushp { margin: 6px 14px 0; } }
+    .pushp p { margin: 6px 0; color: #4a4f5c; }
+    .pbtn { font: inherit; font-weight: 600; font-size: 13.5px; border: 0; border-radius: 999px; padding: 9px 14px; background: var(--accent); color: #fff; cursor: pointer; margin-top: 4px; }
+    .pbtn.ghost { background: #fff; color: #1f2433; border: 1px solid #ece4dc; }
+    .pchk { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+    .pmsg { font-size: 12.5px; color: #3d8a55 !important; }
     .sync { text-align: center; font-size: 11.5px; color: #8a8f9c; margin: 2px 0 0; min-height: 15px; }
     .sync.err { color: #c0392b; }
     .host { --top-offset: 56px; }
@@ -103,6 +130,10 @@ export class AppComponent implements OnInit, OnDestroy {
   statusError = signal(false);
   error = signal('');
   cheer = signal<Cheer | null>(null);
+  pushSt = signal<PushState>('default');
+  pushOpen = signal(false);
+  pushMsg = signal('');
+  reminders = signal(true);
   cheerCount = signal(0);
 
   private me: ProfileId | null = null;
@@ -129,6 +160,7 @@ export class AppComponent implements OnInit, OnDestroy {
         if (this.me && this.me !== this.view()) { this.view.set(this.me); this.applyTheme(); }
         this.user.set(u);
         this.loadingAuth.set(false);
+        if (u) pushState().then((st) => this.zone.run(() => this.pushSt.set(st)));
         if (!u) this.teardown();
       });
     });
@@ -166,6 +198,33 @@ export class AppComponent implements OnInit, OnDestroy {
     this.mount();
   }
 
+  togglePush() {
+    this.pushMsg.set('');
+    this.pushOpen.set(!this.pushOpen());
+    pushState().then((st) => this.zone.run(() => this.pushSt.set(st)));
+    const own = this.me ? this.stores.find((s) => s.profileId === this.me) : undefined;
+    const r = own?.get('push')?.reminders;
+    this.reminders.set(r !== false);
+  }
+
+  async activatePush() {
+    if (!this.me) { this.pushMsg.set('Esta cuenta no tiene un perfil asignado.'); return; }
+    try {
+      const msg = await enablePush(this.me);
+      this.zone.run(() => this.pushMsg.set(msg));
+    } catch (e: any) {
+      this.zone.run(() => this.pushMsg.set('No se pudo activar: ' + (e?.message || e)));
+    }
+    pushState().then((st) => this.zone.run(() => this.pushSt.set(st)));
+  }
+
+  async toggleReminders(on: boolean) {
+    if (!this.me) return;
+    this.reminders.set(on);
+    await setReminders(this.me, on).catch(() => undefined);
+    this.zone.run(() => this.pushMsg.set(on ? 'Recordatorio diario activado ✓' : 'Recordatorio diario desactivado'));
+  }
+
   dismissCheer() {
     if (this.me) markCheersSeen(this.me);
     this.cheer.set(null);
@@ -195,9 +254,12 @@ export class AppComponent implements OnInit, OnDestroy {
     if (seq !== this.mountSeq || !this.hostEl) { stores.forEach((s) => s.stop()); return; }
     const byId = Object.fromEntries(ids.map((id, i) => [id, stores[i]])) as Record<ProfileId, ProfileStore>;
     this.zone.runOutsideAngular(() => {
-      if (view === 'pau') this.unmount = mountPau(this.hostEl!, byId.pau);
-      else if (view === 'marina') this.unmount = mountMarina(this.hostEl!, byId.marina);
-      else this.unmount = mountJuntos(this.hostEl!, byId, this.me);
+      const me = this.me, other: ProfileId | null = me === 'pau' ? 'marina' : me === 'marina' ? 'pau' : null;
+      // Solo avisa al otro de lo que hace el dueño del perfil (no al mirar el plan del otro).
+      const onEvent = (text: string) => { if (me && other && view === me) notifyPartner(other, text, 'evento'); };
+      if (view === 'pau') this.unmount = mountPau(this.hostEl!, byId.pau, { onEvent });
+      else if (view === 'marina') this.unmount = mountMarina(this.hostEl!, byId.marina, { onEvent });
+      else this.unmount = mountJuntos(this.hostEl!, byId, this.me, { onCheer: (to, text) => notifyPartner(to, text, 'animo') });
     });
     this.loadingData.set(false);
     this.watchCheers(byId);

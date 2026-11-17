@@ -20,6 +20,8 @@ export class ProfileStore implements CoreStore {
   private listeners = new Set<() => void>();
   private unsub: Unsubscribe | null = null;
 
+  get profileId() { return this.profile; }
+
   constructor(
     private profile: ProfileId,
     private onStatus: (text: string, isError?: boolean) => void,
