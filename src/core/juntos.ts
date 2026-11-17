@@ -47,6 +47,7 @@ const BIG = [
   { key: 'ex-V-0', short: 'Press militar' }, { key: 'ex-M-1', short: 'Remo con barra' }, { key: 'ex-X-2', short: 'Prensa' },
 ];
 const e1rm = (kg, reps) => kg * (1 + reps / 30);
+const paceTxt = (m) => { if (!(m > 0)) return ''; const t = Math.round(m * 60); return `${Math.floor(t / 60)}'${String(t % 60).padStart(2, '0')}"/km`; };
 
 // ---------- Cálculo de datos ----------
 function analyse(stores: Record<Who, CoreStore>) {
@@ -61,7 +62,14 @@ function analyse(stores: Record<Who, CoreStore>) {
   const prs = []; // {date, key, name, value, unit}
   const volByDate = {};
   const maxKg = {}; const maxRep = {}; const firstLast = {};
-  for (const ex of PAU_EX) {
+  const allDocs = P.all ? P.all() : {};
+  const exList = [...PAU_EX];
+  for (const k of Object.keys(allDocs)) if (k.startsWith('ex-') && k.includes('@')) {
+    const base = PAU_EX.find((e) => e.key === k.split('@')[0]);
+    if (base) exList.push({ ...base, key: k, name: base.name + ' (variante)', type: /asistid/.test(k) ? 'bw' : base.type });
+  }
+  const setsOf = (x) => Array.isArray(x.sets) && x.sets.length ? x.sets : (x.reps || []).map((r) => ({ kg: +x.kg || 0, reps: +r }));
+  for (const ex of exList) {
     const en = (g(P, ex.key).entries || []).slice().sort((a, b) => a.date.localeCompare(b.date));
     if (!en.length) continue;
     let best = -1;
@@ -70,8 +78,9 @@ function analyse(stores: Record<Who, CoreStore>) {
       const reps = (x.reps || []).map(Number).filter((r) => r > 0);
       const kg = +x.kg || 0;
       if (ex.type === 'w') {
-        volByDate[x.date] = (volByDate[x.date] || 0) + kg * reps.reduce((a, b) => a + b, 0);
-        const v = kg; const est = reps.length ? Math.max(...reps.map((r) => e1rm(kg, r))) : 0;
+        const S = setsOf(x).filter((s) => +s.reps > 0);
+        volByDate[x.date] = (volByDate[x.date] || 0) + S.reduce((a, s) => a + (+s.kg || 0) * (+s.reps || 0), 0);
+        const v = kg; const est = S.length ? Math.max(...S.map((s) => e1rm(+s.kg || 0, +s.reps))) : 0;
         pts.push({ date: x.date, kg, est, top: Math.max(0, ...reps) });
         if (best >= 0 && v > best) prs.push({ date: x.date, key: ex.key, name: ex.name, text: `${fmt(v)} kg` });
         if (v > best) best = v;
@@ -87,6 +96,7 @@ function analyse(stores: Record<Who, CoreStore>) {
     firstLast[ex.key] = pts;
   }
   prs.sort((a, b) => a.date.localeCompare(b.date));
+  const rirDays = []; for (const ex of exList) for (const x of (g(P, ex.key).entries || [])) if ((x.sets || []).some((st) => st.rir != null)) rirDays.push(x.date);
 
   // ---- Marina ----
   const mDays = g(M, 'sessions').days || {};
@@ -105,8 +115,8 @@ function analyse(stores: Record<Who, CoreStore>) {
   const cheers = [...(g(P, 'cheers').items || []).map((c) => ({ ...c, to: 'pau' })), ...(g(M, 'cheers').items || []).map((c) => ({ ...c, to: 'marina' }))]
     .sort((a, b) => (a.ts || 0) - (b.ts || 0));
 
-  return { pActive, pNotes, pBody, prs, volByDate, maxKg, maxRep, firstLast, pDays, pStart: g(P, 'meta').start,
-    mActive, mNotes, mBody, runs, routs, bbDays, mDays, mStart: g(M, 'meta').start, cheers };
+  return { rirDays, pActive, pNotes, pBody, prs, volByDate, maxKg, maxRep, firstLast, pDays, pStart: g(P, 'meta').start,
+    mActive, mNotes, mBody, runs, routs, bbDays, mDays, mStart: g(M, 'meta').start, cheers, rfeed: g(M, 'rfeed').entries || [] };
 }
 
 // ---------- Series (fecha, valor) ----------
@@ -160,6 +170,7 @@ function achievements(D) {
   }
   add('pau', 'p-waist2', '📏', 'Cintura −2 cm', 'Baja 2 cm de cintura desde tu primera medida', 2, dropSeries(D.pBody, 'waist'), 'cm');
   add('pau', 'p-waist5', '📐', 'Cintura −5 cm', 'Baja 5 cm de cintura', 5, dropSeries(D.pBody, 'waist'), 'cm');
+  add('pau', 'p-rir', '🎯', 'Entreno con cabeza', 'Apunta el RIR en 20 ejercicios', 20, countSeries(D.rirDays.slice().sort()), 'ejercicios');
   add('pau', 'p-notes', '📝', 'Diario de entreno', 'Escribe 5 notas de sesión', 5, countSeries(D.pNotes), 'notas');
   add('pau', 'p-meas', '🧮', 'Me mido, luego existo', 'Registra tu peso o cintura 4 veces', 4, countSeries(D.pBody.map((x) => x.date)), 'veces');
 
@@ -174,6 +185,11 @@ function achievements(D) {
   const contS = maxSeries(D.runs.map((r) => [r.date, maxCont(r.w, r.s)]));
   [[5, '5 minutos sin parar'], [10, '10 minutos sin parar'], [20, '20 minutos sin parar'], [30, 'Media hora corriendo'], [45, '45 minutos'], [55, '¡Objetivo 7–8 km!']]
     .forEach(([n, t]) => add('marina', 'm-cont' + n, n >= 55 ? '🥇' : '⏱️', t, `Corre ${n} minutos seguidos`, n, contS, 'min'));
+  const paced = D.runs.filter((r) => +r.pace > 0 && +r.km >= 2);
+  add('marina', 'm-pace8', '⚡', 'Ritmo de 8', 'Una carrera de 2+ km a menos de 8 min/km de media', 1, countSeries(paced.filter((r) => +r.pace < 8).map((r) => r.date)));
+  add('marina', 'm-pace7', '🚀', 'Ritmo de 7', 'Una carrera de 2+ km a menos de 7 min/km de media', 1, countSeries(paced.filter((r) => +r.pace < 7).map((r) => r.date)));
+  add('marina', 'm-5k', '🎽', 'Mis primeros 5 km', 'Recorre 5 km en una sola salida', 5, maxSeries(D.runs.filter((r) => +r.km > 0).map((r) => [r.date, +r.km])), 'km');
+  add('marina', 'm-lvl4', '🦾', 'Nivel 4', 'Llega al nivel máximo de las rutinas', 1, countSeries((D.rfeed || []).filter((f) => +f.lvl >= 4).map((f) => f.date)));
   const kmS = sumSeries(D.runs.filter((r) => +r.km > 0).map((r) => [r.date, +r.km]));
   [[10, 'Primeros 10 km'], [25, '25 km'], [50, '50 km'], [100, 'Club de los 100 km']].forEach(([n, t]) => add('marina', 'm-km' + n, '🗺️', t, `${n} km apuntados en total`, n, kmS, 'km'));
   const rS = countSeries(D.routs.map((r) => r.date));
@@ -390,7 +406,7 @@ export function mountJuntos(host: HTMLElement, stores: Record<Who, CoreStore>, m
     const pTitle = (d) => { const ids = D.pDays[d].done || []; const ks = [...new Set(ids.map((x) => x.split('-')[0]))]; return ks.map((k) => PAU_DAY_TITLE[k]).filter(Boolean).join(' + ') || 'gym'; };
     for (const d of D.pActive) ev.push({ date: d, who: 'pau', em: '🏋️', t: `Pau entrenó ${pTitle(d)}` });
     for (const p of D.prs) ev.push({ date: p.date, who: 'pau', em: '🏆', t: `Pau: récord en ${p.name} (${p.text})`, hi: true });
-    for (const r of D.runs) ev.push({ date: r.date, who: 'marina', em: '🏃‍♀️', t: `Marina corrió la semana ${r.w} · sesión ${r.s}${r.km ? ` (${fmt(+r.km)} km)` : ''}${maxCont(r.w, r.s) >= 10 ? ` · ${maxCont(r.w, r.s)}' seguidos` : ''}` });
+    for (const r of D.runs) ev.push({ date: r.date, who: 'marina', em: '🏃‍♀️', t: `Marina corrió la semana ${r.w} · sesión ${r.s}${r.km ? ` (${fmt(+r.km)} km)` : ''}${r.pace ? ` · ${paceTxt(+r.pace)}` : ''}${maxCont(r.w, r.s) >= 10 ? ` · ${maxCont(r.w, r.s)}' seguidos` : ''}` });
     for (const r of D.routs) ev.push({ date: r.date, who: 'marina', em: '💗', t: `Marina hizo la rutina ${ROUT_NAMES[r.r] || r.r}` });
     for (const a of ACH) if (a.done && a.date) ev.push({ date: a.date, who: a.who, em: a.emoji, t: `${a.who === 'pareja' ? 'Los dos' : NAMES[a.who]} desbloque${a.who === 'pareja' ? 'asteis' : 'ó'} «${a.name}»`, hi: true });
     for (const c of D.cheers) ev.push({ date: c.date, ts: c.ts, who: c.from, em: '💌', t: `${NAMES[c.from]} → ${NAMES[c.to]}: «${esc(c.text)}»` });
@@ -478,6 +494,8 @@ export function mountJuntos(host: HTMLElement, stores: Record<Who, CoreStore>, m
       <div class="card"><h3>Plan de carrera</h3><div class="pbar"><i style="width:${((planDone / 39) * 100).toFixed(0)}%;background:linear-gradient(90deg,#f2a7bf,#d9718f)"></i></div>
         <p class="small" style="margin:0">${planDone} de 39 sesiones · ${lastRun ? `vas por la semana ${lastRun.w} de 13` : 'aún sin empezar'} · objetivo: 55' seguidos (≈ 7–8 km)</p></div>
       <div class="card"><h3>Días activos por semana</h3>${bars(weeks.map((w) => wc[w] || 0), labels, COLORS.marina, { target: TARGET.marina, min: 5, showVal: true })}</div>
+      ${(() => { const pr = D.runs.filter((r) => +r.pace > 0 && +r.km >= 1); if (!pr.length) return ''; const best = Math.min(...pr.map((r) => +r.pace));
+        return `<div class="card"><h3>Ritmo medio por carrera</h3><p class="small" style="margin:0">Minutos por km (incluye los tramos caminando, así que irá bajando según corras más seguido). Mejor: <b>${paceTxt(best)}</b></p>${bars(pr.slice(-12).map((r) => +r.pace), pr.slice(-12).map((r) => fdate(r.date).replace(' ', '')), '#b98bd6', { showVal: true, fmtV: (v) => paceTxt(v).replace('/km', '') })}</div>`; })()}
       <div class="card"><h3>Minutos corriendo por semana</h3>${bars(weeks.map((w) => wr[w] || 0), labels, '#f2a7bf', { showVal: true, fmtV: (v) => fmt(v, 0) })}</div>
       <div class="card"><h3>Rutinas en casa</h3><table>${Object.entries(rc).map(([k, v]) => `<tr><td>${ROUT_NAMES[k]}</td><td style="width:45%"><div class="pbar" style="margin:0"><i style="width:${(v / rmax) * 100}%;background:#b98bd6"></i></div></td><td><b>${v}</b></td></tr>`).join('')}</table></div>
       <div class="card"><h3>Medidas</h3>${mrows ? `<table>${mrows}</table><p class="small">En verde lo que ha bajado desde la primera medida. La grasa baja poco a poco y de todo el cuerpo: mira la tendencia de varias semanas, no un día suelto.</p>` : '<p class="small">Apunta tus medidas en Progreso para verlas aquí.</p>'}</div>`;
