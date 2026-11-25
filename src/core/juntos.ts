@@ -38,13 +38,15 @@ const ROUT_NAMES = { A: 'Piernas y caderas', B: 'Brazos, espalda y abdomen', C: 
 // ---------- Catálogo de Pau ----------
 const PAU_EX: { key: string; name: string; type: string; day: string }[] = [];
 for (const d of PAU_DAYS) d.ex.forEach((e, i) => {
-  const type = /Cardio|Extra/.test(e.tag) ? 'none' : /Plancha/.test(e.name) ? 't' : /Dominadas|Fondos|colgado/.test(e.name) ? 'bw' : 'w';
-  PAU_EX.push({ key: `ex-${d.k}-${i}`, name: e.name, type, day: d.title });
+  const key = e.key || `ex-${d.k}-${i}`;
+  if (PAU_EX.some((x) => x.key === key)) return;
+  const type = /Cardio|Extra/.test(e.tag) ? 'none' : /Plancha/.test(e.name) ? 't' : /Dominadas|Fondos|colgado|Dead bug|Pallof|Puente de glúteo a una/.test(e.name) ? 'bw' : 'w';
+  PAU_EX.push({ key, name: e.name, type, day: d.title });
 });
 const PAU_DAY_TITLE = Object.fromEntries(PAU_DAYS.map((d) => [d.k, d.title]));
 const BIG = [
-  { key: 'ex-L-0', short: 'Press banca' }, { key: 'ex-X-0', short: 'Sentadilla' }, { key: 'ex-X-1', short: 'Peso muerto rumano' },
-  { key: 'ex-V-0', short: 'Press militar' }, { key: 'ex-M-1', short: 'Remo con barra' }, { key: 'ex-X-2', short: 'Prensa' },
+  { key: 'ex-M-0', short: 'Jalón' }, { key: 'ex-X-0', short: 'Sentadilla' }, { key: 'ex-X-1', short: 'Peso muerto rumano' },
+  { key: 'ex-V-2', short: 'Hip thrust' }, { key: 'ex-E1-1', short: 'Remo con apoyo' }, { key: 'ex-X-2', short: 'Prensa' },
 ];
 const e1rm = (kg, reps) => kg * (1 + reps / 30);
 const paceTxt = (m) => { if (!(m > 0)) return ''; const t = Math.round(m * 60); return `${Math.floor(t / 60)}'${String(t % 60).padStart(2, '0')}"/km`; };
@@ -146,20 +148,20 @@ function achievements(D) {
   const pS = countSeries(D.pActive);
   add('pau', 'p-first', '🏁', 'Primer día', 'Completa tu primer entreno', 1, pS);
   [[10, 'Calentando motores'], [25, 'Ya es costumbre'], [50, 'Medio centenar'], [100, 'Centurión']].forEach(([n, t]) => add('pau', 'p-s' + n, '💪', t, `${n} días de gym`, n, pS, 'días'));
-  const perfect = Object.entries(weekCounts(D.pActive)).filter(([, c]) => c >= 5).map(([w]) => addDays(w, 4)).sort();
-  add('pau', 'p-perfect', '⭐', 'Semana perfecta', 'Entrena los 5 días de una semana', 1, countSeries(perfect));
+  const perfect = Object.entries(weekCounts(D.pActive)).filter(([, c]) => c >= 4).map(([w]) => addDays(w, 6)).sort();
+  add('pau', 'p-perfect', '⭐', 'Semana perfecta', 'Haz los 4 entrenos en una semana', 1, countSeries(perfect));
   add('pau', 'p-perfect4', '🌟', 'Perfeccionista', '4 semanas perfectas', 4, countSeries(perfect), 'semanas');
   const pStr = streakSeries(D.pActive, TARGET.pau);
-  [[2, 'En racha'], [4, 'Un mes sin fallar'], [8, 'Dos meses on fire'], [12, 'Leyenda del gym']].forEach(([n, t]) => add('pau', 'p-str' + n, '🔥', t, `${n} semanas seguidas con 4+ días`, n, pStr, 'semanas'));
+  [[2, 'En racha'], [4, 'Un mes sin fallar'], [8, 'Dos meses on fire'], [12, 'Leyenda del gym']].forEach(([n, t]) => add('pau', 'p-str' + n, '🔥', t, `${n} semanas seguidas con los 4 entrenos`, n, pStr, 'semanas'));
   const prS = countSeries(D.prs.map((p) => p.date));
   [[1, 'Primer récord'], [10, 'Coleccionista de récords'], [25, 'Máquina de récords'], [50, 'Imparable']].forEach(([n, t]) => add('pau', 'p-pr' + n, '🏆', t, `${n} récord${n > 1 ? 's' : ''} personal${n > 1 ? 'es' : ''}`, n, prS, 'récords'));
   const kgS = (key) => maxSeries((D.firstLast[key] || []).map((p) => [p.date, p.kg]));
-  [[60, 'Banca de 60'], [80, 'Banca de 80'], [100, 'Club de los 100']].forEach(([n, t]) => add('pau', 'p-bench' + n, '🏋️', t, `Press de banca con ${n} kg`, n, kgS('ex-L-0'), 'kg'));
+  [[50, 'Jalón de 50'], [70, 'Espalda de acero'], [90, 'Alas de murciélago']].forEach(([n, t]) => add('pau', 'p-lat' + n, '🦇', t, `Jalón al pecho con ${n} kg`, n, kgS('ex-M-0'), 'kg'));
   [[80, 'Piernas de acero'], [100, 'Sentadilla de 100'], [120, 'Bestia de la sentadilla']].forEach(([n, t]) => add('pau', 'p-squat' + n, '🦵', t, `Sentadilla con ${n} kg`, n, kgS('ex-X-0'), 'kg'));
   [[80, 'Bisagra firme'], [100, 'Rumano de 100']].forEach(([n, t]) => add('pau', 'p-rdl' + n, '🧱', t, `Peso muerto rumano con ${n} kg`, n, kgS('ex-X-1'), 'kg'));
-  [[40, 'Hombros de 40'], [60, 'Hombros de piedra']].forEach(([n, t]) => add('pau', 'p-ohp' + n, '🗿', t, `Press militar de pie con ${n} kg`, n, kgS('ex-V-0'), 'kg'));
+  [[80, 'Glúteo de hierro'], [100, 'Hip thrust de 100'], [140, 'Motor trasero']].forEach(([n, t]) => add('pau', 'p-hip' + n, '🍑', t, `Hip thrust con ${n} kg`, n, kgS('ex-V-2'), 'kg'));
   add('pau', 'p-pull10', '🧗', 'Rey de la barra', '10 dominadas seguidas en una serie', 10, maxSeries((D.firstLast['ex-J-0'] || []).map((p) => [p.date, p.top])), 'reps');
-  add('pau', 'p-dips15', '🤸', 'Fondos de campeón', '15 fondos seguidos en una serie', 15, maxSeries((D.firstLast['ex-J-3'] || []).map((p) => [p.date, p.top])), 'reps');
+  [[40, 'Remo firme'], [60, 'Remero pro']].forEach(([n, t]) => add('pau', 'p-row' + n, '🚣', t, `Remo con apoyo de pecho con ${n} kg`, n, kgS('ex-E1-1'), 'kg'));
   const weekVol = {}; for (const [d, v] of Object.entries(D.volByDate)) { const w = mondayOf(d); weekVol[w] = (weekVol[w] || 0) + v; }
   add('pau', 'p-vol10', '🚚', 'Diez toneladas', 'Mueve 10.000 kg en una semana', 10000, maxSeries(Object.entries(weekVol).map(([w, v]) => [addDays(w, 6) > today() ? today() : addDays(w, 6), v])), 'kg');
   add('pau', 'p-vol250', '🐋', 'Una ballena y media', 'Mueve 250.000 kg en total (≈ 1,5 ballenas azules)', 250000, sumSeries(Object.entries(D.volByDate)), 'kg');
@@ -471,7 +473,7 @@ export function mountJuntos(host: HTMLElement, stores: Record<Who, CoreStore>, m
       const body = D.pBody;
       const kgs = body.filter((x) => +x.kg > 0), ws = body.filter((x) => +x.waist > 0);
       return head + `
-        <div class="stats"><div><b>${D.pActive.length}</b><span>días de gym</span></div><div><b>${wc[thisW] || 0}/5</b><span>esta semana</span></div><div><b>${currentStreak(D.pActive, TARGET.pau)}</b><span>semanas de racha</span></div><div><b>${D.prs.length}</b><span>récords personales</span></div><div><b>${fmt(totalVol / 1000, 1)} t</b><span>movidas en total</span></div></div>
+        <div class="stats"><div><b>${D.pActive.length}</b><span>días de gym</span></div><div><b>${wc[thisW] || 0}/4</b><span>esta semana</span></div><div><b>${currentStreak(D.pActive, TARGET.pau)}</b><span>semanas de racha</span></div><div><b>${D.prs.length}</b><span>récords personales</span></div><div><b>${fmt(totalVol / 1000, 1)} t</b><span>movidas en total</span></div></div>
         <div class="card"><h3>Días por semana</h3>${bars(weeks.map((w) => wc[w] || 0), labels, COLORS.pau, { target: TARGET.pau, min: 5, showVal: true })}</div>
         <div class="card"><h3>Volumen semanal (toneladas)</h3><p class="small" style="margin:0">Peso × repeticiones de todas las series. Si sube con el tiempo, estás progresando.</p>${bars(weeks.map((w) => (wv[w] || 0) / 1000), labels, '#f0a35e', { showVal: true, fmtV: (v) => fmt(v, 1) })}</div>
         <div class="card"><h3>Ejercicios principales</h3>${lifts.length ? `<table><tr><th>Ejercicio</th><th>Inicio → ahora</th><th>1RM est.</th><th></th></tr>${lifts.map((l) => `<tr><td>${l.short}</td><td>${fmt(l.f.kg)} → <b>${fmt(l.l.kg)} kg</b> ${l.pct ? `<span class="${l.pct >= 0 ? 'up' : 'down'}">${l.pct > 0 ? '+' : ''}${fmt(l.pct, 0)}%</span>` : ''}</td><td>${fmt(l.best, 0)} kg</td><td>${spark(l.vals, COLORS.pau, 70, 24)}</td></tr>`).join('')}</table><p class="small">1RM estimado: el peso máximo que podrías levantar una vez, calculado con tus series (fórmula de Epley). Solo es orientativo, no hace falta probarlo.</p>` : '<p class="small">Cuando apuntes pesos en los ejercicios principales verás aquí tu evolución.</p>'}</div>
